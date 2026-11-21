@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vidrio empañado</title>
+<title>Fogged Glass</title>
 
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -35,40 +35,38 @@
   #ui { pointer-events: none; }
   video { display: none; }
 
-  /* ---------- Pantalla inicial ---------- */
+  /* ---------- Start screen ---------- */
   .start {
     position: absolute;
     inset: 0;
     z-index: 50;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 14px;
     background: #0a0a0a;
     color: #f2f2f2;
     cursor: pointer;
     transition: opacity 0.8s ease;
   }
   .start.hide { opacity: 0; pointer-events: none; }
-  .start h1 {
+  .start p {
     font-weight: 200;
-    font-size: clamp(22px, 4vw, 38px);
+    font-size: clamp(16px, 2.4vw, 24px);
     letter-spacing: 0.35em;
     text-transform: uppercase;
-    padding-left: 0.35em;
-  }
-  .start p {
-    font-size: 12px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    opacity: 0.45;
+    padding: 0 24px 0 calc(24px + 0.35em);
     text-align: center;
-    padding: 0 24px;
   }
-  .start p.error { opacity: 0.9; color: #ff8a8a; letter-spacing: 0.05em; text-transform: none; }
+  .start p.error {
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: none;
+    color: #ff8a8a;
+    max-width: 420px;
+    line-height: 1.6;
+  }
 
-  /* ---------- Pista temporal ---------- */
+  /* ---------- Temporary hint ---------- */
   .hint {
     position: absolute;
     left: 50%;
@@ -87,7 +85,7 @@
   }
   .hint.show { opacity: 1; }
 
-  /* ---------- Controles ---------- */
+  /* ---------- Controls ---------- */
   .control {
     position: absolute;
     bottom: 22px;
@@ -114,7 +112,6 @@
   .shot { right: 22px; width: 44px; justify-content: center; cursor: pointer; }
   .shot svg { width: 19px; height: 19px; stroke: #fff; }
 
-  /* Slider minimalista */
   input[type="range"] {
     -webkit-appearance: none;
     appearance: none;
@@ -150,7 +147,6 @@
     box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
   }
 
-  /* Destello al tomar captura */
   .flash {
     position: absolute;
     inset: 0;
@@ -173,25 +169,25 @@
   <div class="stage" id="stage">
     <video id="webcam" autoplay playsinline muted></video>
 
-    <!-- Cámara + vaho (esto es lo que se captura) -->
+    <!-- Camera + fog (this is what the screenshot captures) -->
     <canvas id="view" width="1280" height="720"></canvas>
-    <!-- Cursor del dedo (no sale en la captura) -->
+    <!-- Fingertip cursor (not included in screenshots) -->
     <canvas id="ui" width="1280" height="720"></canvas>
 
-    <div class="hint" id="hint">Sopla para empañar · dibuja con el dedo índice</div>
+    <div class="hint" id="hint">Pucker &amp; blow to fog · pinch to draw</div>
 
-    <!-- Botón 1: intensidad del vaho -->
-    <div class="control intensity" id="intensityBox" title="Intensidad del vaho">
+    <!-- Button 1: fog intensity -->
+    <div class="control intensity" id="intensityBox" title="Fog intensity">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 8c3-2.5 5 2.5 9 0s6-2.5 9 0"></path>
         <path d="M3 13c3-2.5 5 2.5 9 0s6-2.5 9 0"></path>
         <path d="M3 18c3-2.5 5 2.5 9 0s6-2.5 9 0"></path>
       </svg>
-      <input type="range" id="intensity" min="0.2" max="1" step="0.01" value="0.8" aria-label="Intensidad del vaho">
+      <input type="range" id="intensity" min="0.2" max="1" step="0.01" value="0.8" aria-label="Fog intensity">
     </div>
 
-    <!-- Botón 2: captura -->
-    <button class="control shot" id="shotBtn" aria-label="Tomar captura" title="Tomar captura">
+    <!-- Button 2: screenshot -->
+    <button class="control shot" id="shotBtn" aria-label="Take screenshot" title="Take screenshot">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
         <path d="M4 8a2 2 0 0 1 2-2h2l1.5-2h5L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"></path>
         <circle cx="12" cy="12.5" r="3.4"></circle>
@@ -201,8 +197,7 @@
     <div class="flash" id="flash"></div>
 
     <div class="start" id="start">
-      <h1>Vidrio empañado</h1>
-      <p id="startMsg">Toca para empezar · permite cámara y micrófono</p>
+      <p id="startMsg">Click to start</p>
     </div>
   </div>
 
@@ -210,21 +205,29 @@
 (() => {
 
   // ============================================================
-  // AJUSTES (puedes tocarlos si algo no responde bien)
+  // SETTINGS
   // ============================================================
   const W = 1280, H = 720;
 
-  const BLOW_MARGIN_DB   = 9;     // cuántos dB sobre el ruido ambiente se considera soplido
-  const BLOW_FLATNESS    = 0.10;  // "ruido plano" (soplido) vs voz con tonos
-  const BLOW_STRONG_DB   = 24;    // por encima de esto se acepta como soplido siempre
-  const BRUSH_CORE       = 30;    // grosor del trazo transparente (px)
-  const BRUSH_SOFT       = 54;    // halo suave alrededor del trazo
-  const YAW_GAIN         = 2.2;   // cuánto se desplaza el vaho al girar la cabeza (horizontal)
-  const PITCH_GAIN       = 3.0;   // idem vertical
-  const NOSE_NEUTRAL     = 0.58;  // posición vertical relativa de la nariz con la cabeza recta
+  // Blowing = lips puckered (mouth gets narrower than its relaxed width) with a small opening
+  const PUCKER_ENTER   = 0.78;  // mouth width / relaxed width below this → puckered
+  const PUCKER_EXIT    = 0.86;  // back above this → no longer puckered (avoids flicker)
+  const MIN_LIP_GAP    = 0.004; // lips must be slightly open (relative to face height)
+  const MAX_LIP_GAP    = 0.10;  // ...but not wide open (talking, yawning)
+  const CALIBRATION_FRAMES = 20;
+
+  const PINCH_CLOSE    = 0.28;  // thumb–index distance (relative to hand size) to start drawing
+  const PINCH_OPEN     = 0.45;  // distance to stop drawing
+  const EXTEND_ANGLE   = 140;   // degrees; above this a finger counts as extended
+
+  const BRUSH_CORE     = 30;    // transparent stroke width (px)
+  const BRUSH_SOFT     = 54;    // soft halo around the stroke
+  const YAW_GAIN       = 2.2;   // how far the fog shifts when you turn your head sideways
+  const PITCH_GAIN     = 3.0;   // same, vertically
+  const NOSE_NEUTRAL   = 0.58;  // relative nose height with the head straight
 
   // ============================================================
-  // ELEMENTOS
+  // ELEMENTS
   // ============================================================
   const video = document.getElementById("webcam");
   const view = document.getElementById("view");
@@ -240,26 +243,26 @@
   const flashEl = document.getElementById("flash");
 
   // ============================================================
-  // CAPAS OFFSCREEN
+  // OFFSCREEN LAYERS
   // ============================================================
-  // Máscara del vaho: alpha = cuánto vaho hay en cada punto
+  // Fog mask: alpha = how much fog is at each point
   const mask = document.createElement("canvas");
   mask.width = W; mask.height = H;
   const maskCtx = mask.getContext("2d");
 
-  // Capa de vaho ya compuesta (cámara borrosa + tinte + textura)
+  // Composited fog layer (blurred camera + tint + droplets)
   const fog = document.createElement("canvas");
   fog.width = W; fog.height = H;
   const fogCtx = fog.getContext("2d");
 
-  // Versión pequeña de la cámara para desenfocar barato
+  // Small camera copy, cheap to blur
   const supportsFilter = "filter" in CanvasRenderingContext2D.prototype;
   const small = document.createElement("canvas");
   small.width = supportsFilter ? 320 : 128;
   small.height = supportsFilter ? 180 : 72;
   const smallCtx = small.getContext("2d");
 
-  // Textura sutil de gotitas
+  // Subtle droplet texture
   const noise = document.createElement("canvas");
   noise.width = 256; noise.height = 256;
   (() => {
@@ -275,7 +278,7 @@
   const noisePattern = fogCtx.createPattern(noise, "repeat");
 
   // ============================================================
-  // GEOMETRÍA DE LA CÁMARA (recorte tipo "cover" + espejo)
+  // CAMERA GEOMETRY ("cover" crop + mirror)
   // ============================================================
   let drawW = W, drawH = H, offX = 0, offY = 0;
 
@@ -289,7 +292,7 @@
     offY = (H - drawH) / 2;
   }
 
-  // Coordenadas normalizadas de MediaPipe → pantalla (ya en modo espejo)
+  // MediaPipe normalized coords → screen px (already mirrored)
   function mapX(nx) { return W - (offX + nx * drawW); }
   function mapY(ny) { return offY + ny * drawH; }
 
@@ -297,76 +300,28 @@
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
   // ============================================================
-  // SOPLIDO: detección con el micrófono
+  // FACE: mouth position, head direction and lip pucker (blowing)
   // ============================================================
-  let audioCtx = null, analyser = null, freqData = null;
-  let baselineDb = null, baselineFrames = 0;
+  const face = {
+    t: 0,
+    mouth: { x: W / 2, y: H * 0.6 },
+    target: { x: W / 2, y: H * 0.55 }
+  };
+
+  let relaxedWidth = null;   // personal "relaxed mouth width / face width" baseline
+  let calibCount = 0;
+  let puckered = false;
+  let blowTarget = 0;
   let blowStrength = 0;
-
-  async function setupAudio(stream) {
-    const AC = window.AudioContext || window.webkitAudioContext;
-    audioCtx = new AC();
-    if (audioCtx.state === "suspended") await audioCtx.resume();
-    const src = audioCtx.createMediaStreamSource(stream);
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 2048;
-    analyser.smoothingTimeConstant = 0.45;
-    src.connect(analyser);
-    freqData = new Float32Array(analyser.frequencyBinCount);
-  }
-
-  function readBlow() {
-    if (!analyser) return 0;
-
-    analyser.getFloatFrequencyData(freqData);
-
-    const binHz = audioCtx.sampleRate / analyser.fftSize;
-    const lo = Math.max(1, Math.ceil(80 / binHz));
-    const hi = Math.min(freqData.length - 1, Math.floor(4000 / binHz));
-
-    let sumP = 0, sumLog = 0, n = 0;
-    for (let i = lo; i <= hi; i++) {
-      const p = Math.pow(10, freqData[i] / 10) + 1e-20;
-      sumP += p;
-      sumLog += Math.log(p);
-      n++;
-    }
-    const meanP = sumP / n;
-    const levelDb = 10 * Math.log10(meanP);
-    const flatness = Math.exp(sumLog / n) / meanP; // 1 = ruido plano, ~0 = tono/voz
-
-    if (baselineDb === null) baselineDb = levelDb;
-
-    const excess = levelDb - baselineDb;
-    const isBlow =
-      (excess > BLOW_MARGIN_DB && flatness > BLOW_FLATNESS) ||
-      excess > BLOW_STRONG_DB;
-
-    // El ruido ambiente solo se aprende cuando no se sopla
-    if (!isBlow) {
-      const rate = baselineFrames < 60 ? 0.2 : 0.01;
-      baselineDb += (levelDb - baselineDb) * rate;
-      baselineFrames++;
-    }
-
-    const target = isBlow ? clamp((excess - BLOW_MARGIN_DB) / 18 + 0.25, 0, 1) : 0;
-    // ataque rápido, caída lenta
-    blowStrength += (target - blowStrength) * (target > blowStrength ? 0.35 : 0.08);
-    return blowStrength;
-  }
-
-  // ============================================================
-  // DIRECCIÓN DE LA BOCA (FaceMesh)
-  // ============================================================
-  const face = { t: 0, mouth: { x: W / 2, y: H * 0.6 }, target: { x: W / 2, y: H * 0.55 } };
 
   function onFaceResults(results) {
     const lm = results.multiFaceLandmarks && results.multiFaceLandmarks[0];
-    if (!lm) return;
+    if (!lm) { blowTarget = 0; return; }
 
     const P = i => ({ x: mapX(lm[i].x), y: mapY(lm[i].y) });
 
     const upperLip = P(13), lowerLip = P(14);
+    const cornerL = P(61), cornerR = P(291);
     const mouth = { x: (upperLip.x + lowerLip.x) / 2, y: (upperLip.y + lowerLip.y) / 2 };
 
     const nose = P(1);
@@ -376,9 +331,8 @@
     const faceW = Math.max(1, Math.abs(cheekA.x - cheekB.x));
     const faceH = Math.max(1, chin.y - top.y);
 
-    // Giro horizontal: la nariz respecto al centro de las mejillas
+    // ---- Direction of the airflow (head yaw / pitch) ----
     const yaw = (nose.x - (cheekA.x + cheekB.x) / 2) / faceW;
-    // Inclinación vertical: la nariz respecto a su posición neutra
     const pitch = (nose.y - top.y) / faceH - NOSE_NEUTRAL;
 
     const tx = clamp(mouth.x + yaw * W * YAW_GAIN, 0, W);
@@ -390,10 +344,45 @@
     face.target.x += (tx - face.target.x) * k;
     face.target.y += (ty - face.target.y) * k;
     face.t = performance.now();
+
+    // ---- Lip pucker detection ----
+    const widthRatio = dist(cornerL, cornerR) / faceW;   // how wide the mouth is
+    const lipGap = dist(upperLip, lowerLip) / faceH;     // how open the lips are
+
+    if (relaxedWidth === null) relaxedWidth = widthRatio;
+
+    const rel = widthRatio / relaxedWidth;
+    const gapOk = lipGap > MIN_LIP_GAP && lipGap < MAX_LIP_GAP;
+
+    if (calibCount >= CALIBRATION_FRAMES) {
+      if (!puckered && rel < PUCKER_ENTER && gapOk) puckered = true;
+      else if (puckered && (rel > PUCKER_EXIT || !gapOk)) puckered = false;
+    }
+
+    // The relaxed width is learned only while not puckered (rises fast, falls slowly)
+    if (!puckered) {
+      relaxedWidth += (widthRatio - relaxedWidth) * (widthRatio > relaxedWidth ? 0.08 : 0.01);
+      calibCount++;
+    }
+
+    if (puckered) {
+      const depth = 1 - rel;                          // 0.22+ when puckered
+      blowTarget = clamp(0.45 + (depth - 0.22) * 3, 0.45, 1);
+    } else {
+      blowTarget = 0;
+    }
+  }
+
+  function updateBlow() {
+    // No recent face → no blowing
+    if (performance.now() - face.t > 300) blowTarget = 0;
+    blowStrength += (blowTarget - blowStrength) * (blowTarget > blowStrength ? 0.3 : 0.15);
+    if (blowStrength < 0.01) blowStrength = 0;
+    return blowStrength;
   }
 
   // ============================================================
-  // VAHO: depositar y evaporar
+  // FOG: deposit and evaporate
   // ============================================================
   function deposit(x, y, r, a) {
     const g = maskCtx.createRadialGradient(x, y, 0, x, y, r);
@@ -409,15 +398,13 @@
   function applyBlow(strength) {
     if (strength < 0.06) return;
 
-    const fresh = performance.now() - face.t < 700;
-    const src = fresh ? face.mouth : { x: W / 2, y: H * 0.65 };
-    const tgt = fresh ? face.target : { x: W / 2, y: H * 0.5 };
+    const src = face.mouth;
+    const tgt = face.target;
     const power = 0.4 + parseFloat(slider.value);
     const a = 0.07 * strength * power;
 
-    // Varias manchas a lo largo del "chorro" de aire, más grandes al alejarse
-    const steps = [0.35, 0.7, 1.0];
-    steps.forEach((t, i) => {
+    // Several puffs along the airflow, larger the farther they go
+    [0.35, 0.7, 1.0].forEach((t, i) => {
       const jx = (Math.random() - 0.5) * 40;
       const jy = (Math.random() - 0.5) * 40;
       const x = src.x + (tgt.x - src.x) * t + jx;
@@ -429,7 +416,7 @@
 
   let frameCount = 0;
   function evaporate() {
-    // Muy lento: el vidrio se va aclarando solo con los segundos
+    // Very slow: the glass clears on its own over time
     if (frameCount % 30 !== 0) return;
     maskCtx.save();
     maskCtx.globalCompositeOperation = "destination-out";
@@ -439,10 +426,8 @@
   }
 
   // ============================================================
-  // DEDOS: dibujar = quitar el vaho (trazo transparente)
+  // HANDS: pinch (thumb + index, other fingers up) = wipe the fog
   // ============================================================
-  const EXTEND_ANGLE = 150;
-
   function fingerAngle(lm, mcp, pip, tip) {
     const a = { x: lm[mcp].x - lm[pip].x, y: lm[mcp].y - lm[pip].y, z: (lm[mcp].z || 0) - (lm[pip].z || 0) };
     const b = { x: lm[tip].x - lm[pip].x, y: lm[tip].y - lm[pip].y, z: (lm[tip].z || 0) - (lm[pip].z || 0) };
@@ -454,19 +439,27 @@
 
   const fingerUp = (lm, m, p, t) => fingerAngle(lm, m, p, t) > EXTEND_ANGLE;
 
-  function isIndexPointing(lm) {
-    return fingerUp(lm, 5, 6, 8) &&
-           !fingerUp(lm, 9, 10, 12) &&
-           !fingerUp(lm, 13, 14, 16) &&
-           !fingerUp(lm, 17, 18, 20);
+  function otherFingersUp(lm) {
+    return fingerUp(lm, 9, 10, 12) &&   // middle
+           fingerUp(lm, 13, 14, 16) &&  // ring
+           fingerUp(lm, 17, 18, 20);    // pinky
+  }
+
+  function pinchRatio(lm) {
+    const handSize = dist(lm[0], lm[9]) || 1;
+    return dist(lm[4], lm[8]) / handSize;
   }
 
   const handStates = {};
   function getState(key) {
-    return handStates[key] || (handStates[key] = { last: null, smooth: null });
+    return handStates[key] || (handStates[key] = { last: null, smooth: null, pinching: false });
   }
   function resetState(key) {
-    if (handStates[key]) { handStates[key].last = null; handStates[key].smooth = null; }
+    if (handStates[key]) {
+      handStates[key].last = null;
+      handStates[key].smooth = null;
+      handStates[key].pinching = false;
+    }
   }
 
   function wipeSegment(from, to) {
@@ -475,7 +468,7 @@
     maskCtx.lineCap = "round";
     maskCtx.lineJoin = "round";
 
-    // Halo suave
+    // Soft halo
     maskCtx.strokeStyle = "rgba(0,0,0,0.35)";
     maskCtx.lineWidth = BRUSH_SOFT;
     maskCtx.beginPath();
@@ -483,7 +476,7 @@
     maskCtx.lineTo(to.x, to.y);
     maskCtx.stroke();
 
-    // Núcleo completamente transparente
+    // Fully transparent core
     maskCtx.strokeStyle = "rgba(0,0,0,1)";
     maskCtx.lineWidth = BRUSH_CORE;
     maskCtx.beginPath();
@@ -511,10 +504,25 @@
       const key = handedness[i]?.label || `hand_${i}`;
       present.add(key);
 
-      if (!isIndexPointing(hand)) { resetState(key); return; }
+      if (!otherFingersUp(hand)) { resetState(key); return; }
 
       const state = getState(key);
-      const raw = { x: mapX(hand[8].x), y: mapY(hand[8].y) };
+      const ratio = pinchRatio(hand);
+
+      if (!state.pinching && ratio < PINCH_CLOSE) state.pinching = true;
+      else if (state.pinching && ratio > PINCH_OPEN) state.pinching = false;
+
+      if (!state.pinching) {
+        state.last = null;
+        state.smooth = null;
+        return;
+      }
+
+      // Draw at the midpoint between thumb tip and index tip
+      const raw = {
+        x: (mapX(hand[4].x) + mapX(hand[8].x)) / 2,
+        y: (mapY(hand[4].y) + mapY(hand[8].y)) / 2
+      };
 
       if (!state.smooth) {
         state.smooth = { x: raw.x, y: raw.y };
@@ -539,11 +547,10 @@
     frameCount++;
     updateVideoGeometry();
 
-    const strength = readBlow();
-    applyBlow(strength);
+    applyBlow(updateBlow());
     evaporate();
 
-    // 1) Cámara en modo espejo
+    // 1) Mirrored camera
     ctx.globalAlpha = 1;
     ctx.save();
     ctx.translate(W, 0);
@@ -551,7 +558,7 @@
     ctx.drawImage(video, offX, offY, drawW, drawH);
     ctx.restore();
 
-    // 2) Cámara desenfocada (lo que se "ve a través del vaho")
+    // 2) Blurred camera (what you see "through" the fog)
     smallCtx.save();
     smallCtx.translate(small.width, 0);
     smallCtx.scale(-1, 1);
@@ -566,7 +573,7 @@
     fogCtx.imageSmoothingQuality = "high";
     fogCtx.drawImage(small, 0, 0, W, H);
 
-    // 3) Tinte blanco-azulado + gotitas
+    // 3) Cool white tint + droplets
     fogCtx.fillStyle = "rgba(228, 236, 243, 0.42)";
     fogCtx.fillRect(0, 0, W, H);
     fogCtx.globalAlpha = 0.6;
@@ -574,17 +581,17 @@
     fogCtx.fillRect(0, 0, W, H);
     fogCtx.globalAlpha = 1;
 
-    // 4) Recortar el vaho con la máscara (donde dibujaste queda transparente)
+    // 4) Cut the fog with the mask (wiped areas become transparent)
     fogCtx.globalCompositeOperation = "destination-in";
     fogCtx.drawImage(mask, 0, 0);
     fogCtx.globalCompositeOperation = "source-over";
 
-    // 5) Vaho sobre la cámara, según la intensidad elegida
+    // 5) Fog over the camera, scaled by the chosen intensity
     ctx.globalAlpha = parseFloat(slider.value);
     ctx.drawImage(fog, 0, 0);
     ctx.globalAlpha = 1;
 
-    // Cursor del dedo (en otra capa: no aparece en la captura)
+    // Fingertip cursor (separate layer: not in screenshots)
     uictx.clearRect(0, 0, W, H);
     cursors.forEach(c => {
       uictx.beginPath();
@@ -622,22 +629,21 @@
   });
   faceMesh.onResults(onFaceResults);
 
-  let detectCount = 0;
   let busy = false;
   async function detectLoop() {
     if (!busy && video.readyState >= 2) {
       busy = true;
       try {
         await hands.send({ image: video });
-        if (detectCount++ % 2 === 0) await faceMesh.send({ image: video });
-      } catch (e) { /* se ignora un frame fallido */ }
+        await faceMesh.send({ image: video });
+      } catch (e) { /* skip a failed frame */ }
       busy = false;
     }
     requestAnimationFrame(detectLoop);
   }
 
   // ============================================================
-  // INICIO (cámara + micrófono)
+  // START (camera only, no microphone)
   // ============================================================
   let started = false;
 
@@ -645,18 +651,16 @@
     if (started) return;
     started = true;
     startMsg.classList.remove("error");
-    startMsg.textContent = "Iniciando…";
+    startMsg.textContent = "Starting…";
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
-        // Sin filtros: si no, el navegador "limpia" el soplido como si fuera ruido
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+        audio: false
       });
 
       video.srcObject = stream;
       await video.play();
-      await setupAudio(stream);
 
       render();
       detectLoop();
@@ -670,14 +674,14 @@
     } catch (err) {
       started = false;
       startMsg.classList.add("error");
-      startMsg.textContent = "No se pudo acceder a la cámara o al micrófono. Revisa los permisos y toca para reintentar.";
+      startMsg.textContent = "Could not access the camera. Check your permissions and click to try again.";
     }
   }
 
   startEl.addEventListener("click", start);
 
   // ============================================================
-  // CAPTURA
+  // SCREENSHOT
   // ============================================================
   shotBtn.addEventListener("click", () => {
     flashEl.classList.remove("go");
@@ -690,7 +694,7 @@
       const a = document.createElement("a");
       const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
       a.href = url;
-      a.download = `vidrio-empanado-${stamp}.png`;
+      a.download = `fogged-glass-${stamp}.png`;
       document.body.appendChild(a);
       a.click();
       a.remove();
